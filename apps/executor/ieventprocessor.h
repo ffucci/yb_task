@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bit>
 #include <cstddef>
 #include <cstdlib>
 #include <utility>
@@ -62,8 +63,7 @@ class IEventProcessor
 
         auto GetEvent(const size_t index) const noexcept -> void* const
         {
-            // return events_ + index * event_size_;
-            return nullptr;
+            return std::bit_cast<void*>(std::bit_cast<std::byte*>(events_) + index * event_size_);
         }
 
         auto Count() -> size_t
@@ -91,6 +91,11 @@ class IEventProcessor
         const size_t count_;
         const size_t event_size_;
     };
+
+    auto ReserveEvent() -> std::pair<size_t, void* const>
+    {
+        return {0, nullptr};
+    }
 
     //////////////////////////////////////////////////////////////////////////
     /// ---
