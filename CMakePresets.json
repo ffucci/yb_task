@@ -1,0 +1,28 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "Release",
+            "displayName": "Release",
+            "description": "Release build",
+            "generator": "Ninja",
+            "binaryDir": "build-release",
+            "cacheVariables": {
+                "UPDATE_SUBMODULES": "ON",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "Coverage",
+            "generator": "Ninja",
+            "binaryDir": "build-debug",
+            "cacheVariables": {
+                "UPDATE_SUBMODULES": "ON",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CODE_COVERAGE": "TRUE",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        }
+    ]
+}
