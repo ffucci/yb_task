@@ -34,8 +34,10 @@ class LockFreePolymorphic
         auto& node = nodes_[curr_wr_seq & (nodes_.size() - 1)];
 
         uint8_t expected = EMPTY;
+        std::atomic_thread_fence(std::memory_order_release);
         while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel)) {
             expected = EMPTY;
+            std::this_thread::yield();
         }
 
         // Store the commit pointer in the node
@@ -50,6 +52,7 @@ class LockFreePolymorphic
         uint8_t expected = RESERVED;
         while (!current.written_.compare_exchange_weak(expected, COMMIT, std::memory_order_acq_rel)) {
             expected = RESERVED;
+            std::this_thread::yield();
         }
     }
 
@@ -61,8 +64,10 @@ class LockFreePolymorphic
 
         auto result = COMMIT;
         auto desired = EMPTY;
+
         while (!node.written_.compare_exchange_weak(result, desired, std::memory_order_acq_rel)) {
             result = COMMIT;
+            std::this_thread::yield();
         }
         read_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
 
@@ -86,7 +91,7 @@ class LockFreePolymorphic
         std::byte* node_ptr_{};
     };
 
-    static constexpr size_t NUM_NODES{1024};
+    static constexpr size_t NUM_NODES{8192};
     std::array<Node, NUM_NODES> nodes_{};
 };
 }  // namespace yb::task

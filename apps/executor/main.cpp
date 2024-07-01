@@ -11,7 +11,7 @@ int main()
     auto event_processor = std::make_unique<IEventProcessor>();
 
     // queue 1 event
-    constexpr size_t NUM_EVENTS{30000};
+    constexpr size_t NUM_EVENTS{1000000};
     size_t idx{0};
     while (idx < NUM_EVENTS) {
         auto reserved_event = event_processor->Reserve<Event>(static_cast<int>(idx));
