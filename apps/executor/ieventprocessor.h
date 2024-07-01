@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include "task_utility.h"
+
 namespace yb::task {
 
 class IEventProcessor
@@ -77,13 +79,14 @@ class IEventProcessor
             void* const event = GetEvent(index);
             if (event) Constructor<TEvent>::Construct(event, std::forward<Args>(args)...);
         }
-        // template <class TEvent, class... Args>
-        // void Emplace(const size_t index, Args&&... args)
-        // {
-        //     void* const event = GetEvent(index);
 
-        //     if (event) NewPlacementConstructor<TEvent>::Construct(event, std::forward<Args>(args)...);
-        // }
+        template <class TEvent, class... Args>
+        void Emplace(const size_t index, Args&&... args)
+        {
+            void* const event = GetEvent(index);
+
+            if (event) NewPlacementConstructor<TEvent>::Construct(event, std::forward<Args>(args)...);
+        }
 
        private:
         const size_t sequence_number_;
@@ -111,15 +114,15 @@ class IEventProcessor
 
     //////////////////////////////////////////////////////////////////////////
     /// ---
-    // template <class T, class... Args>
-    // ReservedEvent Reserve(Args&&... args)
-    // {
-    //     const auto reservation = ReserveEvent();
-    //     if (!reservation.second) return ReservedEvent();
+    template <class T, class... Args>
+    ReservedEvent Reserve(Args&&... args)
+    {
+        const auto reservation = ReserveEvent();
+        if (!reservation.second) return ReservedEvent();
 
-    //     NewPlacementConstructor<T>::Construct(reservation.second, std::forward<Args>(args)...);
-    //     return ReservedEvent(reservation.first, reservation.second);
-    // }
+        NewPlacementConstructor<T>::Construct(reservation.second, std::forward<Args>(args)...);
+        return ReservedEvent(reservation.first, reservation.second);
+    }
 
     //////////////////////////////////////////////////////////////////////////
     /// ---
