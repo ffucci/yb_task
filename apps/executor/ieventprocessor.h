@@ -1,11 +1,16 @@
 #pragma once
 
 #include <bit>
+#include <climits>
 #include <cstddef>
 #include <cstdlib>
+#include <stop_token>
+#include <thread>
 #include <utility>
 #include <vector>
 
+#include "event.h"
+#include "lockfree_polymorphic.h"
 #include "task_utility.h"
 
 namespace yb::task {
@@ -13,10 +18,20 @@ namespace yb::task {
 class IEventProcessor
 {
    public:
+    IEventProcessor()
+    {
+        reader_ = std::jthread([this](std::stop_token token) {
+            while (!token.stop_requested()) {
+                auto current = polymorphic_.Read<Event>();
+                current->Process();
+            }
+        });
+    }
+
     // Single event
     struct ReservedEvent
     {
-        ReservedEvent(void);
+        ReservedEvent(void) = default;
         ReservedEvent(const size_t sequence_number, const void* event)
             : sequence_number_(sequence_number), event_(event)
         {
@@ -38,9 +53,14 @@ class IEventProcessor
             return event_;
         }
 
+        bool IsValid()
+        {
+            return event_ != nullptr;
+        }
+
        private:
-        const size_t sequence_number_;
-        const void* event_;
+        const size_t sequence_number_{ULLONG_MAX};
+        const void* event_{nullptr};
     };
 
     // Multiple Events
@@ -95,9 +115,10 @@ class IEventProcessor
         const size_t event_size_;
     };
 
+    template <typename T>
     auto ReserveEvent() -> std::pair<size_t, void* const>
     {
-        return {0, nullptr};
+        return polymorphic_.Reserve<T>();
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -105,7 +126,7 @@ class IEventProcessor
     template <class T, template <class> class Constructor, class... Args>
     ReservedEvent Reserve(Args&&... args)
     {
-        const auto reservation = ReserveEvent();
+        const auto reservation = ReserveEvent<T>();
         if (!reservation.second) return ReservedEvent();
 
         Constructor<T>::Construct(reservation.second, std::forward<Args>(args)...);
@@ -117,7 +138,7 @@ class IEventProcessor
     template <class T, class... Args>
     ReservedEvent Reserve(Args&&... args)
     {
-        const auto reservation = ReserveEvent();
+        const auto reservation = ReserveEvent<T>();
         if (!reservation.second) return ReservedEvent();
 
         NewPlacementConstructor<T>::Construct(reservation.second, std::forward<Args>(args)...);
@@ -135,7 +156,12 @@ class IEventProcessor
     /// ---
     void Commit(const size_t sequence_number)
     {
+        polymorphic_.Commit(sequence_number);
     }
+
+    LockFreePolymorphic polymorphic_{20};
+
+    std::jthread reader_;
 };
 
 }  // namespace yb::task
