@@ -159,7 +159,7 @@ class IEventProcessor
         polymorphic_.Commit(sequence_number);
     }
 
-    LockFreePolymorphic polymorphic_{20};
+    LockFreePolymorphic polymorphic_{25};
 
     std::jthread reader_;
 };
