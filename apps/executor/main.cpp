@@ -8,10 +8,10 @@ using namespace yb::task;
 
 int main()
 {
-    IEventProcessor* event_processor = new IEventProcessor();
+    auto event_processor = std::make_unique<IEventProcessor>();
 
     // queue 1 event
-    constexpr size_t NUM_EVENTS{100};
+    constexpr size_t NUM_EVENTS{4098};
     size_t idx{0};
     while (idx < NUM_EVENTS) {
         auto reserved_event = event_processor->Reserve<Event>(static_cast<int>(idx));
@@ -42,6 +42,11 @@ int main()
     //             }
     //         });
     // }
+
+    std::cout << "Published events: " << idx << std::endl;
+
+    while (true) {
+    }
 
     return 0;
 }

@@ -22,7 +22,7 @@ class Event : public IEvent
     virtual void Process(void) override
     {
         // do something with value_
-        std::cout << value_ * value_ << std::endl;
+        std::cout << value_ << std::endl;
     }
 
    private:
