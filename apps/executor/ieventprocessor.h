@@ -159,7 +159,8 @@ class IEventProcessor
         polymorphic_.Commit(sequence_number);
     }
 
-    LockFreePolymorphic polymorphic_{25};
+    static constexpr uint8_t POW_SIZE{25};
+    LockFreePolymorphic polymorphic_{POW_SIZE};
 
     std::jthread reader_;
 };
