@@ -37,7 +37,7 @@ class LockFreePolymorphic
         } while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel));
 
         // Store the commit pointer in the node
-        node.node_ptr_.store(commit_ptr, std::memory_order_release);
+        node.node_ptr_ = commit_ptr;
         return {curr_wr_seq, std::bit_cast<void* const>(commit_ptr)};
     }
 
@@ -64,8 +64,7 @@ class LockFreePolymorphic
             result = COMMIT;
         } while (!node.written_.compare_exchange_weak(result, desired, std::memory_order_acq_rel));
 
-        auto return_ptr = node.node_ptr_.load(std::memory_order_acquire);
-        return std::bit_cast<T*>(return_ptr);
+        return std::bit_cast<T*>(node.node_ptr_);
     }
 
    private:
@@ -85,7 +84,7 @@ class LockFreePolymorphic
     struct Node
     {
         std::atomic<uint64_t> written_{EMPTY};
-        std::atomic<uintptr_t> node_ptr_{};
+        uintptr_t node_ptr_{};
     };
 
     std::array<Node, NUM_NODES> nodes_{};

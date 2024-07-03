@@ -34,7 +34,6 @@ int main()
         size_t idx{0};
         while (idx < NUM_EVENTS) {
             auto reserved_event = event_processor->Reserve<Event>(static_cast<int>(NUM_EVENTS + idx));
-            std::this_thread::yield();
             if (!reserved_event.IsValid()) {
                 // ERROR: Reserve() failed ...
                 std::cout << "Cannot reserve event..." << std::endl;
