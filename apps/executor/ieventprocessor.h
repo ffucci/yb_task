@@ -1,5 +1,7 @@
 #pragma once
 
+#include <boost/container/static_vector.hpp>
+
 #include <bit>
 #include <climits>
 #include <cstddef>
@@ -8,7 +10,6 @@
 #include <stop_token>
 #include <thread>
 #include <utility>
-#include <vector>
 
 #include "event.h"
 #include "lockfree_polymorphic.h"
@@ -17,7 +18,6 @@
 #include "clock.h"
 
 namespace yb::task {
-
 class IEventProcessor
 {
    public:
@@ -81,17 +81,16 @@ class IEventProcessor
     // Multiple Events
     struct ReservedEvents
     {
-        ReservedEvents(void);
         ReservedEvents(const size_t sequence_number, void* const event, const size_t count, const size_t event_size)
             : sequence_number_(sequence_number), events_{nullptr}, count_(count), event_size_(event_size)
         {
         }
 
-        ReservedEvents(const ReservedEvents&) = delete;
-        ReservedEvent& operator=(const ReservedEvents&) = delete;
+        // ReservedEvents(const ReservedEvents&) = delete;
+        // ReservedEvent& operator=(const ReservedEvents&) = delete;
 
-        ReservedEvents(ReservedEvents&&) = delete;
-        ReservedEvents& operator=(ReservedEvents&&) = delete;
+        // ReservedEvents(ReservedEvents&&) = delete;
+        // ReservedEvents& operator=(ReservedEvents&&) = delete;
 
         auto GetSequenceNumber(void) const noexcept -> size_t
         {
@@ -101,6 +100,11 @@ class IEventProcessor
         auto GetEvent(const size_t index) const noexcept -> void* const
         {
             return std::bit_cast<void*>(std::bit_cast<std::byte*>(events_) + index * event_size_);
+        }
+
+        bool IsValid()
+        {
+            return events_ != nullptr;
         }
 
         auto Count() -> size_t
@@ -162,9 +166,11 @@ class IEventProcessor
 
     //////////////////////////////////////////////////////////////////////////
     /// ---
-    std::vector<ReservedEvents> ReserveRange(const size_t size)
+    template <typename T>
+    boost::container::static_vector<ReservedEvents, 2> ReserveRange(const size_t size)
     {
-        return {};
+        const auto [sequence_number, events, count] = polymorphic_.ReserveMultiple<T>(size);
+        return {{sequence_number, events, count, sizeof(T)}, {0, nullptr, 0, 0}};
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -174,7 +180,12 @@ class IEventProcessor
         polymorphic_.Commit(sequence_number);
     }
 
-    static constexpr uint8_t POW_SIZE{27};
+    void Commit(const size_t sequence_number, const size_t count)
+    {
+        polymorphic_.Commit(sequence_number);
+    }
+
+    static constexpr uint8_t POW_SIZE{25};
     LockFreePolymorphic polymorphic_{POW_SIZE};
 
     StatsCollector<uint64_t> stats_collector_;

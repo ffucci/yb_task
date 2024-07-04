@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
     auto event_processor = std::make_unique<IEventProcessor>();
 
     // queue 1 event
-    constexpr size_t NUM_EVENTS{5000};
+    constexpr size_t NUM_EVENTS{1000};
     size_t number_writers = std::stol(argv[1]);
     std::cout << "NUMBER WRITERS: " << number_writers << std::endl;
     std::cout << "NUMBER EVENTS: " << NUM_EVENTS << std::endl;

@@ -11,40 +11,58 @@
 #include <vector>
 #include <array>
 
+#include <iostream>
+
 namespace yb::task {
 class LockFreePolymorphic
 {
    public:
     LockFreePolymorphic(uint8_t size) : data_(1 << size, std::byte{0x00})
     {
-        write_ptr_ = data_.data();
+        write_ptr_ = std::bit_cast<uintptr_t>(data_.data());
     }
 
     template <typename T>
     auto Reserve() -> std::pair<size_t, void* const>
     {
-        auto total_size = sizeof(T);
-        auto commit_ptr = std::bit_cast<uintptr_t>(write_ptr_.fetch_add(total_size, std::memory_order_acq_rel));
+        uintptr_t commit_ptr{};
+        uintptr_t current_write{};
         auto curr_wr_seq = write_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
         auto& node = nodes_[curr_wr_seq & (NUM_NODES - 1)];
+
+        do {
+            current_write = write_ptr_.load(std::memory_order_relaxed);
+            commit_ptr = current_write + sizeof(T);
+            if (commit_ptr >= std::bit_cast<uintptr_t>(data_.data() + data_.size())) {
+                commit_ptr = std::bit_cast<uintptr_t>(data_.data());
+            }
+        } while (!write_ptr_.compare_exchange_weak(current_write, commit_ptr, std::memory_order_acq_rel));
 
         auto expected = EMPTY;
         do {
             expected = EMPTY;
         } while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel));
 
-        // Store the commit pointer in the node
         node.node_ptr_ = commit_ptr;
-        return {curr_wr_seq, std::bit_cast<void* const>(commit_ptr)};
+        // Store the commit pointer in the node
+        return {curr_wr_seq, std::bit_cast<void* const>(node.node_ptr_)};
     }
 
     template <typename T>
     auto ReserveMultiple(const size_t count) -> std::tuple<size_t, void* const, size_t>
     {
-        auto total_size = sizeof(T);
-        auto commit_ptr = std::bit_cast<uintptr_t>(write_ptr_.fetch_add(total_size * count, std::memory_order_acq_rel));
+        uintptr_t commit_ptr{};
+        uintptr_t current_write{};
         auto curr_wr_seq = write_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
         auto& node = nodes_[curr_wr_seq & (NUM_NODES - 1)];
+
+        do {
+            current_write = write_ptr_.load(std::memory_order_relaxed);
+            commit_ptr = current_write + count * sizeof(T);
+            if (commit_ptr >= std::bit_cast<uintptr_t>(data_.data() + data_.size())) {
+                commit_ptr = std::bit_cast<uintptr_t>(data_.data());
+            }
+        } while (!write_ptr_.compare_exchange_weak(current_write, commit_ptr, std::memory_order_acq_rel));
 
         auto expected = EMPTY;
         do {
@@ -96,7 +114,7 @@ class LockFreePolymorphic
     static constexpr size_t CACHELINE_SIZE{64};
 
     // (WRITE_PTR, READ_PTR)
-    alignas(CACHELINE_SIZE) std::atomic<std::byte*> write_ptr_;
+    alignas(CACHELINE_SIZE) std::atomic<uintptr_t> write_ptr_;
     alignas(CACHELINE_SIZE) std::atomic_size_t write_sequence_number_{0};
     alignas(CACHELINE_SIZE) std::atomic_size_t read_sequence_number_{0};
 

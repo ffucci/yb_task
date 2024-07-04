@@ -7,3 +7,4 @@ find_package(fmt)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(benchmark_single benchmark_single.cpp)
+add_executable(benchmark_multi benchmark_multi.cpp)
