@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/frfx/Documents/Projects/Trading/Tasks/yb_task/build-release",
+  "command": "/usr/bin/c++ -O3 -DNDEBUG -std=gnu++20 -o apps/executor/CMakeFiles/benchmark_single.dir/benchmark_single.cpp.o -c /home/frfx/Documents/Projects/Trading/Tasks/yb_task/apps/executor/benchmark_single.cpp",
+  "file": "/home/frfx/Documents/Projects/Trading/Tasks/yb_task/apps/executor/benchmark_single.cpp",
+  "output": "apps/executor/CMakeFiles/benchmark_single.dir/benchmark_single.cpp.o"
+}
+]

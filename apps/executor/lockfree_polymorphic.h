@@ -38,6 +38,24 @@ class LockFreePolymorphic
         return {curr_wr_seq, std::bit_cast<void* const>(commit_ptr)};
     }
 
+    template <typename T>
+    auto ReserveMultiple(const size_t count) -> std::tuple<size_t, void* const, size_t>
+    {
+        auto total_size = sizeof(T);
+        auto commit_ptr = std::bit_cast<uintptr_t>(write_ptr_.fetch_add(total_size * count, std::memory_order_acq_rel));
+        auto curr_wr_seq = write_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
+        auto& node = nodes_[curr_wr_seq & (NUM_NODES - 1)];
+
+        auto expected = EMPTY;
+        do {
+            expected = EMPTY;
+        } while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel));
+
+        // Store the commit pointer in the node
+        node.node_ptr_ = commit_ptr;
+        return {curr_wr_seq, std::bit_cast<void* const>(commit_ptr), count};
+    }
+
     void Commit(const size_t sequence_number)
     {
         auto& current = nodes_[sequence_number & (NUM_NODES - 1)];
