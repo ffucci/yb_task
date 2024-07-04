@@ -8,11 +8,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <thread>
 #include <vector>
 #include <array>
-
-#include <iostream>
 
 namespace yb::task {
 class LockFreePolymorphic
@@ -29,7 +26,7 @@ class LockFreePolymorphic
         auto total_size = sizeof(T);
         auto commit_ptr = std::bit_cast<uintptr_t>(write_ptr_.fetch_add(total_size, std::memory_order_acq_rel));
         auto curr_wr_seq = write_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
-        auto& node = nodes_[curr_wr_seq & (nodes_.size() - 1)];
+        auto& node = nodes_[curr_wr_seq & (NUM_NODES - 1)];
 
         auto expected = EMPTY;
         do {
@@ -43,7 +40,7 @@ class LockFreePolymorphic
 
     void Commit(const size_t sequence_number)
     {
-        auto& current = nodes_[sequence_number & (nodes_.size() - 1)];
+        auto& current = nodes_[sequence_number & (NUM_NODES - 1)];
         auto expected = RESERVED;
 
         do {
@@ -52,27 +49,32 @@ class LockFreePolymorphic
     }
 
     template <typename T>
-    auto Read() -> T*
+    auto Read() -> std::pair<size_t, T*>
     {
         auto curr_rd_seq = read_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
-        auto& node = nodes_[curr_rd_seq & (nodes_.size() - 1)];
-
+        auto& node = nodes_[curr_rd_seq & (NUM_NODES - 1)];
         auto result = COMMIT;
-        auto desired = EMPTY;
-
         do {
             result = COMMIT;
-        } while (!node.written_.compare_exchange_weak(result, desired, std::memory_order_acq_rel));
+        } while (!node.written_.compare_exchange_weak(result, READ, std::memory_order_acq_rel));
 
-        return std::bit_cast<T*>(node.node_ptr_);
+        return {curr_rd_seq, std::bit_cast<T*>(node.node_ptr_)};
+    }
+
+    auto Free(const size_t sequence_number)
+    {
+        auto& node = nodes_[sequence_number & (NUM_NODES - 1)];
+
+        node.written_.store(EMPTY, std::memory_order_release);
     }
 
    private:
     static constexpr uint64_t EMPTY{1 << 1};
     static constexpr uint64_t RESERVED{1 << 2};
     static constexpr uint64_t COMMIT{1 << 3};
+    static constexpr uint64_t READ{1 << 4};
 
-    static constexpr size_t NUM_NODES{8192};
+    static constexpr size_t NUM_NODES{1 << 14};
     static constexpr size_t CACHELINE_SIZE{64};
 
     // (WRITE_PTR, READ_PTR)

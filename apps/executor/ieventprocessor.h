@@ -3,6 +3,7 @@
 #include <bit>
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <stop_token>
 #include <thread>
@@ -11,7 +12,9 @@
 
 #include "event.h"
 #include "lockfree_polymorphic.h"
+#include "stats_collector.h"
 #include "task_utility.h"
+#include "clock.h"
 
 namespace yb::task {
 
@@ -22,10 +25,22 @@ class IEventProcessor
     {
         reader_ = std::jthread([this](std::stop_token token) {
             while (!token.stop_requested()) {
-                auto current = polymorphic_.Read<Event>();
+                auto [sequence, current] = polymorphic_.Read<Event>();
                 current->Process();
+                auto measure_timepoint = measure::Clock::now() - current->GetTimestamp();
+                stats_collector_.collect(measure::Clock::from_cycles(measure_timepoint).count());
+                polymorphic_.Free(sequence);
             }
+            std::cout << "REQUESTED STOPPED..." << std::endl;
         });
+    }
+
+    ~IEventProcessor()
+    {
+        stats_collector_.print();
+        reader_.request_stop();
+        reader_.join();
+        std::cout << "EVENT PROCESSOR DESTROYED" << std::endl;
     }
 
     // Single event
@@ -159,9 +174,10 @@ class IEventProcessor
         polymorphic_.Commit(sequence_number);
     }
 
-    static constexpr uint8_t POW_SIZE{25};
+    static constexpr uint8_t POW_SIZE{27};
     LockFreePolymorphic polymorphic_{POW_SIZE};
 
+    StatsCollector<uint64_t> stats_collector_;
     std::jthread reader_;
 };
 

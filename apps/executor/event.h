@@ -1,6 +1,9 @@
 #pragma once
 
+#include <chrono>
+#include <cstdint>
 #include <iostream>
+#include <thread>
 
 #include "ievent.h"
 
@@ -8,7 +11,7 @@ namespace yb::task {
 class Event : public IEvent
 {
    public:
-    explicit Event(const int value) : value_(value)
+    explicit Event(const uint64_t timestamp, const int value) : timestamp_{timestamp}, value_(value)
     {
     }
     virtual ~Event(void) override = default;
@@ -22,10 +25,15 @@ class Event : public IEvent
     virtual void Process(void) override
     {
         // do something with value_
-        std::cout << value_ << std::endl;
+    }
+
+    auto GetTimestamp() -> uint64_t
+    {
+        return timestamp_;
     }
 
    private:
+    uint64_t timestamp_;
     int value_;
 };
 }  // namespace yb::task
