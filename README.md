@@ -1,10 +1,9 @@
 ## Idea
 
-There is one circular buffer indexed by sequence number & (NUM_NODES - 1) and a contiguous piece of memory 
-that is reserved on each reserve.
+There is one circular buffer indexed by sequence number & (NUM_NODES - 1) and a circular buffer of raw memory that is reserved on each reserve.
 
 Have a node containing the state of the cell if it is reserved, commited or empty.
-For each cell I store the pointer after being reserved.
+For each cell I store the pointer and the event counts after the node has been reserved.
 
 ## Measurement
 My machine has 10 cores, I could not disable the hyperthreading because the machine is locked.
@@ -14,7 +13,9 @@ Further details are the in the following presentation: [Microbenchmarking C++ co
 
 ### Single Reservation
 
-Experiment with 5000 number of events per writer.
+**Experiment:** 5000 number of events per writer.
+
+**CPU:** 12th Gen Intel(R) Core(TM) i9-12900H
 
 If the writers keep flooding the queue the latency is clearly high, so the idea to have a more realistic measure is avoid that the writers flood the queue in a tight loop.
 
