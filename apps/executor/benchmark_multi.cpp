@@ -34,27 +34,39 @@ int main(int argc, char* argv[])
             size_t idx{0};
             // queue multiple events
             auto reserved_events_collection =
-                event_processor->ReserveRange<Event>(2);  // It can reserve less items than requested! You should always
-                                                          // check how many events have been reserved!
-            if (reserved_events_collection.empty()) {
-                std::cout << "EVENTS EMPTY" << std::endl;
-            } else {
-                std::for_each(
-                    reserved_events_collection.begin(), reserved_events_collection.end(),
-                    [&](IEventProcessor::ReservedEvents& reserved_events) {
-                        if (!reserved_events.IsValid()) {
-                            // ERROR: Reserve() failed
-                        } else {
-                            for (size_t i = 0; i < reserved_events.Count(); ++i)
-                                reserved_events.Emplace<Event>(i, i, static_cast<int>(i + 3));
-                            event_processor->Commit(reserved_events.GetSequenceNumber(), reserved_events.Count());
-                        }
-                    });
+                event_processor->ReserveRange<Event>(1000);  // It can reserve less items than requested! You should
+                                                             // always check how many events have been reserved!
+            for (size_t i = 0; i < reserved_events_collection.Count(); ++i) {
+                std::cout << i << std::endl;
+                reserved_events_collection.Emplace<Event>(i, i, static_cast<int>(i + 3));
             }
+
+            event_processor->Commit(reserved_events_collection.GetSequenceNumber(), reserved_events_collection.Count());
+
+            // if (reserved_events_collection.empty()) {
+            //     std::cout << "EVENTS EMPTY" << std::endl;
+            // } else {
+            //     std::for_each(
+            //         reserved_events_collection.begin(), reserved_events_collection.end(),
+            //         [&](IEventProcessor::ReservedEvents& reserved_events) {
+            //             if (!reserved_events.IsValid()) {
+            //                 // ERROR: Reserve() failed
+            //             } else {
+            //                 for (size_t i = 0; i < reserved_events.Count(); ++i) {
+            //                     std::cout << i << std::endl;
+            //                     reserved_events.Emplace<Event>(i, i, static_cast<int>(i + 3));
+            //                 }
+
+            //                 event_processor->Commit(reserved_events.GetSequenceNumber(), reserved_events.Count());
+            //             }
+            //         });
+            // }
 
             std::cout << "JOINED " << tidx << std::endl;
         });
     }
 
+    while (true) {
+    }
     return 0;
 }

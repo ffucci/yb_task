@@ -11,8 +11,6 @@
 #include <vector>
 #include <array>
 
-#include <iostream>
-
 namespace yb::task {
 class LockFreePolymorphic
 {
@@ -43,7 +41,8 @@ class LockFreePolymorphic
             expected = EMPTY;
         } while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel));
 
-        node.node_ptr_ = commit_ptr;
+        node.node_ptr_ = current_write;
+        node.event_count_ = 1;
         // Store the commit pointer in the node
         return {curr_wr_seq, std::bit_cast<void* const>(node.node_ptr_)};
     }
@@ -58,10 +57,8 @@ class LockFreePolymorphic
 
         do {
             current_write = write_ptr_.load(std::memory_order_relaxed);
-            commit_ptr = current_write + count * sizeof(T);
-            if (commit_ptr >= std::bit_cast<uintptr_t>(data_.data() + data_.size())) {
-                commit_ptr = std::bit_cast<uintptr_t>(data_.data());
-            }
+            auto limit = std::bit_cast<uintptr_t>(data_.data() + data_.size());
+            commit_ptr = current_write + (count * sizeof(T));
         } while (!write_ptr_.compare_exchange_weak(current_write, commit_ptr, std::memory_order_acq_rel));
 
         auto expected = EMPTY;
@@ -70,8 +67,9 @@ class LockFreePolymorphic
         } while (!node.written_.compare_exchange_weak(expected, RESERVED, std::memory_order_acq_rel));
 
         // Store the commit pointer in the node
-        node.node_ptr_ = commit_ptr;
-        return {curr_wr_seq, std::bit_cast<void* const>(commit_ptr), count};
+        node.node_ptr_ = current_write;
+        node.event_count_ = count;
+        return {curr_wr_seq, std::bit_cast<void* const>(node.node_ptr_), node.event_count_};
     }
 
     void Commit(const size_t sequence_number)
@@ -85,7 +83,7 @@ class LockFreePolymorphic
     }
 
     template <typename T>
-    auto Read() -> std::pair<size_t, T*>
+    auto Read() -> std::tuple<size_t, T*, size_t>
     {
         auto curr_rd_seq = read_sequence_number_.fetch_add(1, std::memory_order_acq_rel);
         auto& node = nodes_[curr_rd_seq & (NUM_NODES - 1)];
@@ -94,13 +92,12 @@ class LockFreePolymorphic
             result = COMMIT;
         } while (!node.written_.compare_exchange_weak(result, READ, std::memory_order_acq_rel));
 
-        return {curr_rd_seq, std::bit_cast<T*>(node.node_ptr_)};
+        return {curr_rd_seq, std::bit_cast<T*>(node.node_ptr_), node.event_count_};
     }
 
     auto Free(const size_t sequence_number)
     {
         auto& node = nodes_[sequence_number & (NUM_NODES - 1)];
-
         node.written_.store(EMPTY, std::memory_order_release);
     }
 
@@ -123,6 +120,7 @@ class LockFreePolymorphic
     {
         std::atomic<uint64_t> written_{EMPTY};
         uintptr_t node_ptr_{};
+        uint64_t event_count_{0};
     };
 
     std::array<Node, NUM_NODES> nodes_{};

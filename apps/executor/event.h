@@ -24,7 +24,7 @@ class Event : public IEvent
 
     virtual void Process(void) override
     {
-        std::cout << value_ << std::endl;
+        // std::cout << timestamp_ << " " << value_ << std::endl;
     }
 
     auto GetTimestamp() -> uint64_t

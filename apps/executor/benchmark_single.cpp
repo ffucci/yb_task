@@ -45,8 +45,6 @@ int main(int argc, char* argv[])
                     ++idx;
                 }
             }
-
-            std::cout << "JOINED " << tidx << std::endl;
         });
     }
 

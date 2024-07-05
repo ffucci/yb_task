@@ -10,6 +10,7 @@
 #include <stop_token>
 #include <thread>
 #include <utility>
+#include <array>
 
 #include "event.h"
 #include "lockfree_polymorphic.h"
@@ -25,10 +26,16 @@ class IEventProcessor
     {
         reader_ = std::jthread([this](std::stop_token token) {
             while (!token.stop_requested()) {
-                auto [sequence, current] = polymorphic_.Read<Event>();
-                current->Process();
-                auto measure_timepoint = measure::Clock::now() - current->GetTimestamp();
-                stats_collector_.collect(measure::Clock::from_cycles(measure_timepoint).count());
+                auto [sequence, current, count] = polymorphic_.Read<Event>();
+                size_t idx{0};
+                while (idx < count) {
+                    current->Process();
+                    auto measure_timepoint = measure::Clock::now() - current->GetTimestamp();
+                    stats_collector_.collect(measure::Clock::from_cycles(measure_timepoint).count());
+                    auto curr_before = current;
+                    current += sizeof(Event);
+                    ++idx;
+                }
                 polymorphic_.Free(sequence);
             }
             std::cout << "REQUESTED STOPPED..." << std::endl;
@@ -81,16 +88,18 @@ class IEventProcessor
     // Multiple Events
     struct ReservedEvents
     {
+        ReservedEvents(void) = default;
+
         ReservedEvents(const size_t sequence_number, void* const event, const size_t count, const size_t event_size)
-            : sequence_number_(sequence_number), events_{nullptr}, count_(count), event_size_(event_size)
+            : sequence_number_(sequence_number), events_{event}, count_(count), event_size_(event_size)
         {
         }
 
-        // ReservedEvents(const ReservedEvents&) = delete;
-        // ReservedEvent& operator=(const ReservedEvents&) = delete;
+        ReservedEvents(const ReservedEvents&) = delete;
+        ReservedEvent& operator=(const ReservedEvents&) = delete;
 
-        // ReservedEvents(ReservedEvents&&) = delete;
-        // ReservedEvents& operator=(ReservedEvents&&) = delete;
+        ReservedEvents(ReservedEvents&&) = delete;
+        ReservedEvents& operator=(ReservedEvents&&) = delete;
 
         auto GetSequenceNumber(void) const noexcept -> size_t
         {
@@ -99,7 +108,7 @@ class IEventProcessor
 
         auto GetEvent(const size_t index) const noexcept -> void* const
         {
-            return std::bit_cast<void*>(std::bit_cast<std::byte*>(events_) + index * event_size_);
+            return std::bit_cast<void*>(std::bit_cast<uintptr_t>(events_) + index * event_size_);
         }
 
         bool IsValid()
@@ -123,13 +132,12 @@ class IEventProcessor
         void Emplace(const size_t index, Args&&... args)
         {
             void* const event = GetEvent(index);
-
             if (event) NewPlacementConstructor<TEvent>::Construct(event, std::forward<Args>(args)...);
         }
 
        private:
-        const size_t sequence_number_;
-        void* const events_{nullptr};
+        size_t sequence_number_;
+        void* const events_;
         const size_t count_;
         const size_t event_size_;
     };
@@ -167,10 +175,11 @@ class IEventProcessor
     //////////////////////////////////////////////////////////////////////////
     /// ---
     template <typename T>
-    boost::container::static_vector<ReservedEvents, 2> ReserveRange(const size_t size)
+    ReservedEvents ReserveRange(const size_t size)
     {
         const auto [sequence_number, events, count] = polymorphic_.ReserveMultiple<T>(size);
-        return {{sequence_number, events, count, sizeof(T)}, {0, nullptr, 0, 0}};
+        std::cout << "addr: " << events << std::endl;
+        return ReservedEvents(sequence_number, events, count, sizeof(T));
     }
 
     //////////////////////////////////////////////////////////////////////////
